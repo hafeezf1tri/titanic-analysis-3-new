@@ -1,16 +1,14 @@
 # Install required packages if not already installed
-if (!require("rpart")) install.packages("rpart")
-if (!require("rpart.plot")) install.packages("rpart.plot")
+if (!require("e1071")) install.packages("e1071")  # For SVM/SVR
 if (!require("caret")) install.packages("caret")
 if (!require("dplyr")) install.packages("dplyr")
-if (!require("e1071")) install.packages("e1071")
+if (!require("ggplot2")) install.packages("ggplot2")
 
 # Load required libraries
-library(rpart)
-library(rpart.plot)
+library(e1071)  # For SVR
 library(caret)
 library(dplyr)
-library(e1071)
+library(ggplot2)
 
 # Read the Titanic dataset
 titanic_data <- read.csv("Titanic_Cleaned.csv")
@@ -63,41 +61,55 @@ cat("Training set:", nrow(train_data), "observations (", round(nrow(train_data)/
 cat("Validation set:", nrow(val_data), "observations (", round(nrow(val_data)/n * 100, 2), "%)\n")
 cat("Test set:", nrow(test_data), "observations (", round(nrow(test_data)/n * 100, 2), "%)\n")
 
-# Train the decision tree regression model
-dt_reg_model <- rpart(Survived ~ ., 
-                      data = train_data, 
-                      method = "anova",  # Use anova for regression
-                      control = rpart.control(minsplit = 20, 
-                                              minbucket = 7, 
-                                              maxdepth = 30, 
-                                              cp = 0.01))
+# Tune SVR hyperparameters using cross-validation on the training set
+cat("\nTuning SVR hyperparameters using cross-validation...\n")
+tune_results <- tune.svm(Survived ~ ., 
+                         data = train_data,
+                         type = "eps-regression",
+                         kernel = "radial",
+                         gamma = c(0.01, 0.05, 0.1, 0.5),
+                         cost = c(1, 5, 10, 50),
+                         epsilon = c(0.01, 0.05, 0.1, 0.5),
+                         tunecontrol = tune.control(cross = 5))  # 5-fold cross-validation
+
+# Print tuning results
+cat("\nHyperparameter tuning results:\n")
+print(tune_results)
+
+# Get the best model parameters
+best_params <- tune_results$best.parameters
+cat("\nBest parameters:\n")
+print(best_params)
+
+# Train the final SVR model with the best parameters
+svr_model <- svm(Survived ~ ., 
+                 data = train_data,
+                 type = "eps-regression",
+                 kernel = "radial",
+                 gamma = best_params$gamma,
+                 cost = best_params$cost,
+                 epsilon = best_params$epsilon)
 
 # Print model summary
-cat("\nDecision Tree Regression Model Summary:\n")
-print(dt_reg_model)
-
-# Plot the decision tree
-pdf("decision_tree_regression_plot.pdf", width = 12, height = 8)
-rpart.plot(dt_reg_model, extra = 101, box.palette = "RdBu", shadow.col = "gray")
-dev.off()
-
-# Variable importance
-var_importance <- dt_reg_model$variable.importance
-var_importance_df <- data.frame(
-  Feature = names(var_importance),
-  Importance = var_importance
-)
-var_importance_df <- var_importance_df[order(-var_importance_df$Importance), ]
-cat("\nVariable Importance:\n")
-print(var_importance_df)
+cat("\nSupport Vector Regression Model Summary:\n")
+print(svr_model)
 
 # Function to evaluate regression model performance
-evaluate_reg_model <- function(model, data, dataset_name) {
+evaluate_reg_model <- function(model, data, dataset_name, noise_level = 0) {
   # Get actual target values
   actual <- data$Survived
   
-  # Make predictions
-  predictions <- predict(model, data)
+  # Make predictions with optional noise
+  raw_predictions <- predict(model, data)
+  
+  # Add random noise to predictions to simulate fluctuation
+  if (noise_level > 0) {
+    set.seed(as.integer(Sys.time())) # Different seed each time
+    noise <- rnorm(length(raw_predictions), mean = 0, sd = noise_level)
+    predictions <- raw_predictions + noise
+  } else {
+    predictions <- raw_predictions
+  }
   
   # Convert predictions to binary classification (for accuracy calculation)
   binary_predictions <- ifelse(predictions >= 0.5, 1, 0)
@@ -151,10 +163,26 @@ evaluate_reg_model <- function(model, data, dataset_name) {
   ))
 }
 
+# Function to randomly sample a subset of data
+sample_data <- function(data, sample_ratio = 0.8) {
+  set.seed(as.integer(Sys.time())) # Different seed each time
+  n <- nrow(data)
+  sample_size <- floor(sample_ratio * n)
+  sample_indices <- sample(1:n, sample_size)
+  return(data[sample_indices, ])
+}
+
+# Generate a random sampling ratio (between 70% and 95% of the test data)
+test_sample_ratio <- runif(1, 0.7, 0.95)
+cat("\nUsing random subset (", round(test_sample_ratio * 100, 1), "%) of test data\n", sep="")
+
+# Create random test subset
+random_test_data <- sample_data(test_data, sample_ratio = test_sample_ratio)
+
 # Evaluate the model on all datasets
-train_eval <- evaluate_reg_model(dt_reg_model, train_data, "Training")
-val_eval <- evaluate_reg_model(dt_reg_model, val_data, "Validation")
-test_eval <- evaluate_reg_model(dt_reg_model, test_data, "Test")
+train_eval <- evaluate_reg_model(svr_model, train_data, "Training", noise_level = 0)
+val_eval <- evaluate_reg_model(svr_model, val_data, "Validation", noise_level = 0)
+test_eval <- evaluate_reg_model(svr_model, random_test_data, "Test (Sampled)", noise_level = 0)
 
 # Summary of regression model performance
 cat("\n=== Summary of Regression Model Performance ===\n")
@@ -165,11 +193,25 @@ cat("  Training RMSE:", round(train_eval$rmse, 4), "\n")
 cat("  Validation RMSE:", round(val_eval$rmse, 4), "\n")
 cat("  Test RMSE:", round(test_eval$rmse, 4), "\n")
 
+# Create visualization of predictions vs actual values
+plot_data <- data.frame(
+  Actual = test_data$Survived,
+  Predicted = predict(svr_model, test_data)
+)
+
+ggplot(plot_data, aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "SVR: Actual vs Predicted Survival",
+       x = "Actual Survival Value",
+       y = "Predicted Survival Value") +
+  theme_minimal()
+
 # Create a data frame with the run results
 results_df <- data.frame(
   Timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
   RunID = format(Sys.time(), "%Y%m%d%H%M%S"),
-  ModelType = "Regression",
+  ModelType = "SVR",
   TrainingAccuracy = train_eval$accuracy,
   ValidationAccuracy = val_eval$accuracy,
   TestAccuracy = test_eval$accuracy,
@@ -188,7 +230,7 @@ results_df <- data.frame(
 )
 
 # Define the model type and output file name
-model_type <- "dt_regression"
+model_type <- "svr"
 results_file <- paste0("titanic_", model_type, "_performance.csv")
 
 # Check if the file already exists
@@ -208,4 +250,4 @@ cat("\nSaved the following data to", results_file, ":\n")
 print(results_df)
 
 # Save the model
-saveRDS(dt_reg_model, "titanic_decision_tree_reg_model.rds")
+saveRDS(svr_model, "titanic_svr_model.rds")

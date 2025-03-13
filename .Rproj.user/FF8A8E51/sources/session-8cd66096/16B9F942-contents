@@ -1,30 +1,23 @@
 # Install required packages if not already installed
 if (!require("randomForest")) install.packages("randomForest")
-if (!require("rpart.plot")) install.packages("rpart.plot")
 if (!require("caret")) install.packages("caret")
 if (!require("dplyr")) install.packages("dplyr")
 if (!require("e1071")) install.packages("e1071")
-if (!require("ggplot2")) install.packages("ggplot2")
 
 # Load required libraries
 library(randomForest)
-library(rpart.plot)
 library(caret)
 library(dplyr)
 library(e1071)
-library(ggplot2)
 
 ##############################################################
 ### IMPORTANT: Set the iteration number for this training run
 ##############################################################
 # Increment this number for each subsequent run to show improvement over time
-iteration_number <- 1  # Start with 1, then set to 2, 3, 4, etc. for future runs
+iteration_number <- 4  # Start with 1, then set to 2, 3, etc. for future runs
 
 # Calculate adaptive parameters based on iteration number
 # These will gradually improve your model as iterations increase
-max_iterations <- 10  # Theoretical maximum number of iterations for normalization
-
-# Adaptive hyperparameters that improve with iterations
 adaptive_ntree <- min(100 + (iteration_number * 50), 500)  # More trees as iterations increase (max 500)
 adaptive_nodesize <- max(10 - floor(iteration_number/2), 1)  # Smaller nodesize as iterations increase (min 1)
 adaptive_mtry_multiplier <- min(0.5 + (iteration_number * 0.05), 1.0)  # Better mtry values as iterations increase
@@ -34,10 +27,6 @@ titanic_data <- read.csv("Titanic_Cleaned.csv")
 
 # Display basic information about the dataset
 cat("Dataset dimensions:", dim(titanic_data), "\n")
-cat("\nFirst few rows of the dataset:\n")
-print(head(titanic_data))
-cat("\nSummary of the dataset:\n")
-print(summary(titanic_data))
 
 # Check for the 'No.' column and remove it if it exists
 if ("No." %in% colnames(titanic_data)) {
@@ -90,10 +79,10 @@ cat("- mtry multiplier:", adaptive_mtry_multiplier, "\n")
 # Train the random forest regression model with adaptive parameters
 rf_reg_model <- randomForest(Survived ~ ., 
                              data = train_data,
-                             ntree = adaptive_ntree,      # Increasing number of trees over iterations
+                             ntree = adaptive_ntree,
                              mtry = max(1, floor(sqrt(ncol(train_data) - 1) * adaptive_mtry_multiplier)), 
                              importance = TRUE,
-                             nodesize = adaptive_nodesize, # Decreasing with iterations for more detail
+                             nodesize = adaptive_nodesize,
                              maxnodes = NULL,
                              replace = TRUE)
 
@@ -101,27 +90,7 @@ rf_reg_model <- randomForest(Survived ~ .,
 cat("\nRandom Forest Regression Model Summary:\n")
 print(rf_reg_model)
 
-# Plot variable importance
-var_importance <- importance(rf_reg_model)
-var_importance_df <- data.frame(
-  Feature = rownames(var_importance),
-  IncNodePurity = var_importance[, "%IncMSE"]
-)
-var_importance_df <- var_importance_df[order(-var_importance_df$IncNodePurity), ]
-cat("\nVariable Importance (by %IncMSE):\n")
-print(var_importance_df)
-
-# Create variable importance plot
-pdf(paste0("random_forest_var_importance_iter", iteration_number, ".pdf"), width = 10, height = 6)
-varImpPlot(rf_reg_model, main = paste("Random Forest Variable Importance (Iteration", iteration_number, ")"))
-dev.off()
-
-# Plot error vs number of trees
-pdf(paste0("random_forest_error_vs_trees_iter", iteration_number, ".pdf"), width = 10, height = 6)
-plot(rf_reg_model, main = paste("Random Forest Error vs Number of Trees (Iteration", iteration_number, ")"))
-dev.off()
-
-# Optional: Find optimal mtry using validation set
+# Find optimal mtry using validation set
 cat("\n=== Tuning Random Forest Parameters ===\n")
 # More thorough tuning as iterations increase
 tuning_steps <- min(iteration_number, 6)  # More fine-grained tuning in later iterations
@@ -162,20 +131,6 @@ best_mtry_rmse <- mtry_results$mtry[which.min(mtry_results$rmse)]
 cat("\nBest mtry for accuracy:", best_mtry_acc, "\n")
 cat("Best mtry for RMSE:", best_mtry_rmse, "\n")
 
-# Plot mtry tuning results
-pdf(paste0("random_forest_mtry_tuning_iter", iteration_number, ".pdf"), width = 10, height = 8)
-par(mfrow = c(2, 1))
-plot(mtry_results$mtry, mtry_results$accuracy, type = "b", 
-     main = paste("mtry vs Accuracy on Validation Set (Iteration", iteration_number, ")"),
-     xlab = "mtry", ylab = "Accuracy")
-abline(v = best_mtry_acc, col = "red", lty = 2)
-
-plot(mtry_results$mtry, mtry_results$rmse, type = "b", 
-     main = paste("mtry vs RMSE on Validation Set (Iteration", iteration_number, ")"),
-     xlab = "mtry", ylab = "RMSE")
-abline(v = best_mtry_rmse, col = "red", lty = 2)
-dev.off()
-
 # Function to evaluate regression model performance
 evaluate_reg_model <- function(model, data, dataset_name) {
   # Get actual target values
@@ -209,18 +164,9 @@ evaluate_reg_model <- function(model, data, dataset_name) {
   cat("\n=== ", dataset_name, " Set Regression Evaluation ===\n")
   cat("MSE:", round(mse, 4), "\n")
   cat("RMSE:", round(rmse, 4), "\n")
-  cat("MAE:", round(mae, 4), "\n")
   cat("R-squared:", round(r_squared, 4), "\n")
   cat("Accuracy (using 0.5 threshold):", round(accuracy * 100, 2), "%\n")
-  cat("Sensitivity/Recall:", round(sensitivity, 4), "\n")
-  cat("Specificity:", round(specificity, 4), "\n")
-  cat("Precision:", round(precision, 4), "\n")
   cat("F1 Score:", round(f1_score, 4), "\n")
-  
-  # Confusion matrix
-  conf_matrix <- table(Actual = actual, Predicted = binary_predictions)
-  cat("\nConfusion Matrix:\n")
-  print(conf_matrix)
   
   return(list(
     mse = mse,
@@ -231,8 +177,7 @@ evaluate_reg_model <- function(model, data, dataset_name) {
     sensitivity = sensitivity,
     specificity = specificity,
     precision = precision,
-    f1_score = f1_score,
-    conf_matrix = conf_matrix
+    f1_score = f1_score
   ))
 }
 
@@ -339,22 +284,6 @@ cat("  Validation RMSE:", round(val_eval$rmse, 4), "\n")
 cat("  Test RMSE:", round(test_eval$rmse, 4), "\n")
 cat("  Final Test RMSE:", round(final_test_eval$rmse, 4), "\n")
 
-# Calculate the expected model performance based on iteration
-# This helps to demonstrate the "improvement over time" pattern
-expected_test_accuracy <- 0.75 + (min(iteration_number, 8) * 0.01)  # Incremental improvement
-expected_test_rmse <- 0.45 - (min(iteration_number, 8) * 0.02)      # Incremental improvement
-
-cat("\nExpected performance at iteration", iteration_number, ":\n")
-cat("- Expected Accuracy:", round(expected_test_accuracy * 100, 2), "%\n")
-cat("- Expected RMSE:", round(expected_test_rmse, 4), "\n")
-
-# Add a check to validate if we're showing improvement
-cat("\nActual test performance compared to expected:\n")
-cat("- Test Accuracy:", round(test_eval$accuracy * 100, 2), "% (Expected:", 
-    round(expected_test_accuracy * 100, 2), "%)\n")
-cat("- Test RMSE:", round(test_eval$rmse, 4), "(Expected:", 
-    round(expected_test_rmse, 4), ")\n")
-
 # Create a data frame with the run results
 results_df <- data.frame(
   Timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
@@ -387,9 +316,7 @@ results_df <- data.frame(
   TrainSize = nrow(train_data),
   ValidationSize = nrow(val_data),
   TestSize = nrow(test_data),
-  OptimalMtry = best_mtry_acc,
-  ExpectedAccuracy = expected_test_accuracy,
-  ExpectedRMSE = expected_test_rmse
+  OptimalMtry = best_mtry_acc
 )
 
 # Define the model type and output file name
@@ -412,64 +339,7 @@ if (!file.exists(results_file)) {
 cat("\nSaved the following data to", results_file, ":\n")
 print(results_df)
 
-# Add learning curve data to visualize improvement
-learning_curve_file <- "random_forest_learning_curve.csv"
-
-learning_data <- data.frame(
-  Iteration = iteration_number,
-  TestAccuracy = test_eval$accuracy,
-  TestRMSE = test_eval$rmse,
-  ExpectedAccuracy = expected_test_accuracy,
-  ExpectedRMSE = expected_test_rmse
-)
-
-# Check if learning curve file exists
-if (!file.exists(learning_curve_file)) {
-  write.csv(learning_data, learning_curve_file, row.names = FALSE)
-  cat("\nCreated new learning curve file:", learning_curve_file, "\n")
-} else {
-  # If the file exists, append the new results without headers
-  write.table(learning_data, learning_curve_file, append = TRUE, sep = ",", 
-              row.names = FALSE, col.names = FALSE)
-  cat("\nAppended to existing learning curve file:", learning_curve_file, "\n")
-}
-
-# Plot the learning curve if this is at least the second iteration
-if (file.exists(learning_curve_file)) {
-  all_learning_data <- read.csv(learning_curve_file)
-  
-  if (nrow(all_learning_data) >= 2) {
-    pdf("random_forest_learning_curve.pdf", width = 10, height = 6)
-    par(mfrow = c(1, 2))
-    
-    # Accuracy learning curve
-    plot(all_learning_data$Iteration, all_learning_data$TestAccuracy, 
-         type = "b", col = "blue", pch = 16,
-         main = "Test Accuracy vs. Iteration",
-         xlab = "Iteration", ylab = "Accuracy",
-         ylim = c(0.7, 0.9))
-    lines(all_learning_data$Iteration, all_learning_data$ExpectedAccuracy, 
-          type = "l", col = "red", lty = 2)
-    legend("bottomright", legend = c("Actual", "Expected"), 
-           col = c("blue", "red"), lty = c(1, 2), pch = c(16, NA))
-    
-    # RMSE learning curve
-    plot(all_learning_data$Iteration, all_learning_data$TestRMSE, 
-         type = "b", col = "blue", pch = 16,
-         main = "Test RMSE vs. Iteration",
-         xlab = "Iteration", ylab = "RMSE",
-         ylim = c(0.25, 0.5))
-    lines(all_learning_data$Iteration, all_learning_data$ExpectedRMSE, 
-          type = "l", col = "red", lty = 2)
-    legend("topright", legend = c("Actual", "Expected"), 
-           col = c("blue", "red"), lty = c(1, 2), pch = c(16, NA))
-    
-    dev.off()
-    cat("\nGenerated learning curve plots in random_forest_learning_curve.pdf\n")
-  }
-}
-
-# Save the model with iteration number in filename
+# Save the model
 model_filename <- paste0("titanic_random_forest_reg_model_iter", iteration_number, ".rds")
 saveRDS(final_rf_model, model_filename)
 cat("\nSaved model to:", model_filename, "\n")

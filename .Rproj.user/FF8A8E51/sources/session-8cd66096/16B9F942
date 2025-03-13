@@ -3,7 +3,7 @@
     "path": "~/[1] UTP MATERIALS/[4] SEMESTER 4 JAN 2025/[4] DATA SCIENCE/LAB FINAL PROJECT DS TITANIC ANALYSIS/titanic-analysis-3/titanic-analysis-3-new/[5] Random Forest Regression.R",
     "project_path": "[5] Random Forest Regression.R",
     "type": "r_source",
-    "hash": "3883237580",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1741847845741.0,
@@ -13,15 +13,15 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "472,71",
-        "scrollLine": "454"
+        "cursorPosition": "330,8",
+        "scrollLine": "320"
     },
     "folds": "",
-    "lastKnownWriteTime": 1741848821,
+    "lastKnownWriteTime": 1741849586,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1741848821257,
+    "last_content_update": 1741849586071,
     "read_only": false,
     "read_only_alternatives": []
 }

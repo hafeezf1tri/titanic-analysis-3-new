@@ -3,7 +3,7 @@
     "path": "~/[1] UTP MATERIALS/[4] SEMESTER 4 JAN 2025/[4] DATA SCIENCE/LAB FINAL PROJECT DS TITANIC ANALYSIS/titanic-analysis-3/titanic-analysis-3-new/[4] Decision Tree Regression.R",
     "project_path": "[4] Decision Tree Regression.R",
     "type": "r_source",
-    "hash": "3829365674",
+    "hash": "0",
     "contents": "",
     "dirty": false,
     "created": 1741846484590.0,
@@ -13,15 +13,15 @@
         "tempName": "Untitled1",
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "174,36",
-        "scrollLine": "155"
+        "cursorPosition": "467,44",
+        "scrollLine": "0"
     },
     "folds": "",
-    "lastKnownWriteTime": 1741847044,
+    "lastKnownWriteTime": 1741851070,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1741847044933,
+    "last_content_update": 1741851070438,
     "read_only": false,
     "read_only_alternatives": []
 }
