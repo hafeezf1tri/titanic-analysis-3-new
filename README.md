@@ -1,4 +1,5 @@
 # Titanic Survival Analysis
+Final LAB Project - HAFEEZ FITRI BIN SHAHRUL AZAM 
 
 ## Project Overview
 This project analyzes the famous Titanic dataset to predict passenger survival using a decision tree regression model. The analysis includes data preprocessing, model training, and evaluation to understand which factors influenced survival rates during the Titanic disaster.
